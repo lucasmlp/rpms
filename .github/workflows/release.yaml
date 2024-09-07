@@ -1,0 +1,60 @@
+name: Go Ping-Pong API Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+(-rc.[0-9]+)?'
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install dependencies
+        run: go mod tidy
+
+      - name: Build the application
+        run: go build -o ping-pong
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Get the version from the tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Archive binary as tar.gz
+        run: tar -czvf ping-pong-${{ env.VERSION }}.tar.gz ping-pong
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ping-pong-${{ env.VERSION }}
+          path: ping-pong-${{ env.VERSION }}.tar.gz
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: ping-pong-${{ env.VERSION }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ping-pong-${{ env.VERSION }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
